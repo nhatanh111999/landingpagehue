@@ -94,7 +94,7 @@ const processSteps = [
 ]
 
 export default function CoPhucHueLanding() {
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(true)
   const [activeCategory, setActiveCategory] = useState('Tất cả')
   const [selectedItem, setSelectedItem] = useState<typeof collections[0] | null>(null)
 
