@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Check, ImagePlus, LogOut, Plus, Save, Trash2, Upload, X } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Check, ImagePlus, LogOut, Plus, Save, Trash2, Upload, X } from 'lucide-react'
 import Link from 'next/link'
 import type { SiteContent } from '../content/default-content'
 
@@ -18,6 +18,7 @@ const sections = [
 
 type SectionKey = typeof sections[number]['key']
 type Draft = Record<string, string | boolean>
+type ToastMessage = { message: string; type: 'success' | 'error' }
 
 const labels: Record<string, string> = {
   eyebrow: 'Dòng giới thiệu', title: 'Tiêu đề', accentTitle: 'Tiêu đề nhấn', description: 'Mô tả',
@@ -55,6 +56,20 @@ function isRecordSection(section: SectionKey): section is Exclude<SectionKey, 'h
   return listSections.includes(section)
 }
 
+function AdminToast({ toast, onClose }: { toast: ToastMessage; onClose: () => void }) {
+  const isError = toast.type === 'error'
+
+  return (
+    <div role={isError ? 'alert' : 'status'} aria-live={isError ? 'assertive' : 'polite'} className={`fixed right-4 top-4 z-[100] flex w-80 max-w-[calc(100vw-2rem)] items-center gap-3 border-l-4 bg-white px-4 py-3 shadow-lg ${isError ? 'border-red-700' : 'border-emerald-700'}`}>
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center ${isError ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+        {isError ? <AlertCircle size={18} /> : <Check size={18} />}
+      </span>
+      <p className="flex-1 text-sm font-medium">{toast.message}</p>
+      <button onClick={onClose} aria-label="Đóng thông báo" className="p-1 text-stone-500 hover:text-stone-900"><X size={16} /></button>
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
@@ -66,7 +81,7 @@ export default function AdminPage() {
   const [isNew, setIsNew] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [notice, setNotice] = useState('')
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastMessage | null>(null)
   const [localPreview, setLocalPreview] = useState<{ field: string; url: string } | null>(null)
   const newItemRef = useRef<HTMLSpanElement | null>(null)
 
@@ -76,7 +91,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!toast) return
-    const timeout = window.setTimeout(() => setToast(null), 4000)
+    const timeout = window.setTimeout(() => setToast(null), 5000)
     return () => window.clearTimeout(timeout)
   }, [toast])
 
@@ -100,7 +115,7 @@ export default function AdminPage() {
         setAuthenticated(true)
         await loadContent()
       }
-    }).catch(() => setNotice('Không thể kết nối máy chủ.')).finally(() => setCheckingSession(false))
+    }).catch(() => setToast({ message: 'Không thể kết nối máy chủ.', type: 'error' })).finally(() => setCheckingSession(false))
   }, [])
 
   const selectSection = (nextSection: SectionKey) => {
@@ -153,9 +168,9 @@ export default function AdminPage() {
       const result = await response.json()
       if (!response.ok) throw new Error(result.message || 'Không thể lưu nội dung.')
       setContent(updatedContent)
-      setToast('Đã lưu thay đổi.')
+      setToast({ message: 'Đã lưu thay đổi.', type: 'success' })
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Không thể lưu nội dung.')
+      setToast({ message: error instanceof Error ? error.message : 'Không thể lưu nội dung.', type: 'error' })
     } finally {
       setIsSaving(false)
     }
@@ -166,17 +181,20 @@ export default function AdminPage() {
     setNotice('')
     const updatedRecords = records.filter((_, index) => index !== selectedIndex)
     const updatedContent = { ...content, [section]: updatedRecords } as SiteContent
-    const response = await fetch('/api/site-content', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedContent),
-    })
-    if (!response.ok) {
-      setNotice('Không thể xóa mục này.')
-      return
+    try {
+      const response = await fetch('/api/site-content', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedContent),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(result?.message || 'Không thể xóa mục này.')
+
+      setContent(updatedContent)
+      setSelectedIndex(Math.max(0, selectedIndex - 1))
+      setDraft(updatedRecords[Math.max(0, selectedIndex - 1)] ? toDraft(updatedRecords[Math.max(0, selectedIndex - 1)]) : {})
+      setToast({ message: 'Đã xóa mục.', type: 'success' })
+    } catch (error) {
+      setToast({ message: error instanceof Error ? error.message : 'Không thể xóa mục này.', type: 'error' })
     }
-    setContent(updatedContent)
-    setSelectedIndex(Math.max(0, selectedIndex - 1))
-    setDraft(updatedRecords[Math.max(0, selectedIndex - 1)] ? toDraft(updatedRecords[Math.max(0, selectedIndex - 1)]) : {})
-    setToast('Đã xóa mục.')
   }
 
   const uploadImages = async (files: FileList | null, field: string) => {
@@ -201,26 +219,32 @@ export default function AdminPage() {
           ? `${String(current[field] || '').trim()}${current[field] ? '\n' : ''}${urls.join('\n')}`
           : urls[0],
       }))
-      setNotice(`Đã tải ${urls.length} ảnh lên.`)
+      setNotice('')
+      setToast({ message: `Đã tải ${urls.length} ảnh lên.`, type: 'success' })
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Tải ảnh thất bại.')
+      setNotice('')
+      setToast({ message: error instanceof Error ? error.message : 'Tải ảnh thất bại.', type: 'error' })
     }
   }
 
   const login = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setNotice('')
-    const response = await fetch('/api/admin/login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
-    })
-    const result = await response.json()
-    if (!response.ok) {
-      setNotice(result.message || 'Đăng nhập thất bại.')
-      return
+    try {
+      const response = await fetch('/api/admin/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        setToast({ message: result.message || 'Đăng nhập thất bại.', type: 'error' })
+        return
+      }
+      setAuthenticated(true)
+      setPassword('')
+      await loadContent()
+    } catch (error) {
+      setToast({ message: error instanceof Error ? error.message : 'Đăng nhập thất bại.', type: 'error' })
     }
-    setAuthenticated(true)
-    setPassword('')
-    await loadContent()
   }
 
   const logout = async () => {
@@ -241,13 +265,13 @@ export default function AdminPage() {
   if (!authenticated) {
     return (
       <main className="min-h-screen bg-[#f5f3ed] px-5 py-16 text-[#25251f]">
+        {toast && <AdminToast toast={toast} onClose={() => setToast(null)} />}
         <form onSubmit={login} className="mx-auto mt-16 max-w-sm border-t-4 border-[#8b3f2f] bg-white p-8 shadow-sm">
           <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm text-[#685e50]"><ArrowLeft size={16} /> Về trang chủ</Link>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b3f2f]">ChungCheng Studio</p>
           <h1 className="mb-6 mt-2 font-serif text-3xl">Quản trị nội dung</h1>
           <label className="mb-2 block text-sm font-medium" htmlFor="admin-password">Mật khẩu quản trị</label>
           <input id="admin-password" type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} className="w-full border border-stone-300 px-3 py-3 outline-none focus:border-[#8b3f2f]" />
-          {notice && <p role="alert" className="mt-3 text-sm text-red-700">{notice}</p>}
           <button type="submit" className="mt-5 w-full bg-[#8b3f2f] px-4 py-3 text-sm font-semibold text-white">Đăng nhập</button>
         </form>
       </main>
@@ -261,11 +285,7 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-[#f5f3ed] text-[#25251f]">
-      {toast && <div role="status" aria-live="polite" className="fixed right-4 top-4 z-[100] flex w-80 max-w-[calc(100vw-2rem)] items-center gap-3 border-l-4 border-emerald-700 bg-white px-4 py-3 shadow-lg">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-emerald-50 text-emerald-700"><Check size={18} /></span>
-        <p className="flex-1 text-sm font-medium">{toast}</p>
-        <button onClick={() => setToast(null)} aria-label="Đóng thông báo" className="p-1 text-stone-500 hover:text-stone-900"><X size={16} /></button>
-      </div>}
+      {toast && <AdminToast toast={toast} onClose={() => setToast(null)} />}
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-300 bg-white px-5 py-4 sm:px-8">
         <div>
           <Link href="/" className="text-xs font-medium uppercase tracking-[0.15em] text-[#8b3f2f]">ChungCheng Studio</Link>

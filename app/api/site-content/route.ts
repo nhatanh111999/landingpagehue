@@ -37,7 +37,10 @@ export async function PUT(request: Request) {
     await writeSiteContent(content)
     await removeOrphanedUploads(previousContent, content)
     return NextResponse.json({ success: true })
-  } catch {
-    return NextResponse.json({ message: 'Không thể lưu nội dung trang.' }, { status: 400 })
+  } catch (error) {
+    console.error('Lỗi lưu nội dung trang:', error)
+    return NextResponse.json({
+      message: error instanceof Error ? error.message : 'Không thể lưu nội dung trang.',
+    }, { status: 500 })
   }
 }
