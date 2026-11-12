@@ -1,26 +1,9 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import type { Review } from './content/default-content'
 
-const reviews = [
-  {
-    id: 1,
-    quote: "Khoác lên mình bộ Nhật Bình và bước đi giữa Đại Nội, mình thực sự xúc động như được sống lại trong không gian hoàng triều xưa. Tone màu trầm hiện đại của tiệm xuất sắc tuyệt vời!",
-    author: "— CHỊ MINH ANH (HÀ NỘI)"
-  },
-  {
-    id: 2,
-    quote: "Không gian studio ấm cúng và chỉn chu đến từng chi tiết. Nhìn thành quả những khung hình mang đậm chất Huế trầm mặc, mình thấy hoàn toàn xứng đáng.",
-    author: "— ANH HOÀNG NAM (TP. HỒ CHÍ MINH)"
-  },
-  {
-    id: 3,
-    quote: "Ekip hỗ trợ cực kỳ có tâm, hướng dẫn tạo dáng rất tự nhiên giúp mình không bị ngượng ngùng. Nhận ảnh xong ai cũng khen góc chụp có hồn và rất thơ.",
-    author: "— BẠN KHÁNH LINH (ĐÀ NẴNG)"
-  }
-]
-
-export default function ClientReviews() {
+export default function ClientReviews({ reviews }: { reviews: Review[] }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [fade, setFade] = useState(true)
 
@@ -35,7 +18,7 @@ export default function ClientReviews() {
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [reviews.length])
 
   return (
     <section className="py-20 bg-[#121212] text-neutral-200 flex flex-col items-center justify-center px-6">
