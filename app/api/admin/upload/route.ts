@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
     const fileName = `${randomUUID()}${allowedTypes[file.type]}`
 
-    if (hasBlobStorage()) {
+    if (hasBlobStorage() || process.env.VERCEL === '1') {
       const blob = await put(`uploads/${fileName}`, file, {
         access: 'public',
         contentType: file.type,
